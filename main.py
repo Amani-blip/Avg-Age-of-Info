@@ -1,6 +1,7 @@
 import dataclasses
 from dataclasses import dataclass
 from typing import Protocol, Any
+import numpy as np
 
 
 @dataclass
@@ -122,8 +123,19 @@ class ProposedPolicy:
 
 
 # Aidan
-def create_packets() -> list[Packet]:
-    ...
+def create_packets(
+    n: int,
+    source: int,
+    lam: float,
+    scale: float
+) -> list[Packet]:
+    return [
+        Packet(
+            arrival_time=np.random.poisson(lam=lam),
+            service_time=np.random.exponential(scale=scale),
+            source=source
+        ) for _ in range(n)
+    ]
 
 # Aidan
 def aoi(packets: list[PacketOutput]) -> float:
