@@ -1,6 +1,6 @@
 import dataclasses
 from dataclasses import dataclass
-from typing import Protocol, Any
+from typing import Protocol, Any, Callable
 import numpy as np
 
 
@@ -129,14 +129,28 @@ def create_packets(
     lam: float,
     scale: float
 ) -> list[Packet]:
-    return [
-        Packet(
-            arrival_time=np.random.poisson(lam=lam),
-            service_time=np.random.exponential(scale=scale),
-            source=source
-        ) for _ in range(n)
-    ]
+    packets: list[Packet] = []
+    time: int = 0
+    rng: np.random.Generator = np.random.default_rng()
+
+    for _ in range(n):
+        time += rng.poisson(lam=lam)
+        packets.append(
+            Packet(
+                arrival_time=time,
+                service_time=np.random.exponential(scale=scale),
+                source=source
+            )
+        )
+
+    return packets
+
 
 # Aidan
 def aoi(packets: list[PacketOutput]) -> float:
-    ...
+    def age_of_packet(packet: PacketOutput) -> float:
+        return packet.service_end_time - packet.arrival_time
+
+    return sum(
+        map(age_of_packet, packets)
+    )/len(packets)
