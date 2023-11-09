@@ -38,9 +38,71 @@ class Simulation(Protocol):
         ...
 
 class LCFS_W:
-    # Amani
+    #Amani
+    #TODO: LOGIC IS STILL UNDER REVIEW/TEST
     def simulate(self, packets: list[Packet]) -> list[PacketOutput]:
-        ...
+        if len(packets) == 0:
+            return []
+
+        packets = [dataclasses.replace(packet) for packet in packets]
+
+        last_update: list[float] = [-1, -1]
+        lcfs = Stack()
+        
+        output: list[PacketOutput] = []
+
+        def process_packets(previous_clock: float, clock: float):
+            processing_clock = previous_clock
+            
+            while not lcfs.empty() and processing_clock != clock:
+                packet: Packet = lcfs.pop()
+
+                # Drop packets that contain old status updates
+                if packet.arrival_time < last_update[packet.source]:
+                    continue
+
+                # Process the packet
+                available_processing_time = clock - processing_clock
+                processing_time = min(packet.service_time, available_processing_time)
+                processing_clock += processing_time
+                packet.service_time -= processing_time
+
+                # The packet was fully processed
+                if packet.service_time == 0:
+                    last_update[packet.source] = packet.arrival_time
+                    output.append(
+                        PacketOutput(
+                            source=packet.source, 
+                            arrival_time=packet.arrival_time, 
+                            service_end_time=processing_clock
+                        )
+                    )
+                    continue
+                
+                # The packet was not fully processed
+                lcfs.push(packet)
+
+        previous_packet_arrival = -1
+
+        for packet in packets:
+            process_packets(previous_packet_arrival, packet.arrival_time)
+            previous_packet_arrival = packet.arrival_time
+
+            if lcfs.empty():
+                lcfs.push(packet)
+            else:
+                # Check if the new packet should replace an older packet in the queue
+                while not lcfs.empty():
+                    oldest_packet = lcfs.pop()
+                    if packet.arrival_time >= oldest_packet.arrival_time:
+                        lcfs.push(oldest_packet)
+                        break
+                lcfs.push(packet)
+
+        total_remaining_processing_time = sum([packet.service_time for packet in lcfs.items])
+        process_packets(previous_packet_arrival, previous_packet_arrival + total_remaining_processing_time)
+
+        return output
 
 class LCFS_S:
     # Daniel
