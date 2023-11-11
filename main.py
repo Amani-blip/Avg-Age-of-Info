@@ -116,9 +116,57 @@ class LCFS_S:
         return output
 
 class ProposedPolicy:
-    # Maria
+    # Marija
     def simulate(self, packets: list[Packet]) -> list[PacketOutput]:
-        ...
+        # check there's at least one packet to simulate
+        if len(packets) == 0:
+            return []
+        
+        #creates a new instance of the data class with all of the same field values, just to avoid changing original data 
+        packets = [dataclasses.replace(packet) for packet in packets]
+        
+        last_update: list[float] = [-1, -1] # Last update times for each source (used to calculate AoI)
+        queues: Dict[int, Queue] = defaultdict(Queue) # Use the built in queue for each source
+        # Represents the sink
+        output: list[PacketOutput] = [] # List to store processed packets
+
+        server_busy = False
+        current_time = 0
+
+        for packet in packets:
+            # Process packets if the server is not busy and the packet arrival tiime is due
+            if not server_busy or packet.arrival_time >= current_time:
+                server_busy = True  # Server is now busy
+                current_time = max(current_time, packet.arrival_time) + packet.service_time # Update the current time
+                last_update[packet.source-1] = packet.arrival_time  # Update the last update time for the source
+                output.append(PacketOutput(  # Add the processed packet to the sink
+                    source=packet.source,
+                    arrival_time=packet.arrival_time,
+                    service_end_time=current_time
+                ))
+                continue  # Skip to the next packet
+
+            # Enqueue or replace packet: a packet of a source c ∈ {1, 2} waiting in the queue is replaced if a new packet of the same source arrives.
+            if not queues[packet.source].empty():
+                queues[packet.source].get()  # Remove the old packet if it exists
+            queues[packet.source].put(packet) # Adds new packet
+
+        # Process any remaining packets in the queue (this happens if packets arrive while the server is busy, so they're queued)
+        while any(not q.empty() for q in queues.values()):
+          for source, queue in queues.items():
+              if not queue.empty():
+                packet = queue.get()
+                  # Server processes the remaining packet
+                current_time = max(current_time, packet.arrival_time)
+                current_time += packet.service_time
+                last_update[packet.source-1] = packet.arrival_time
+                output.append(PacketOutput(  # Add the processed packet to the sink
+                    source=packet.source,
+                    arrival_time=packet.arrival_time,
+                    service_end_time=current_time
+                ))
+        
+        return output
 
 
 # Aidan
