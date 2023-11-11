@@ -1,4 +1,4 @@
-from main import Packet, PacketOutput, ProposedPolicy
+from main import Packet, PacketOutput, LCFS_S
 
 
 def test_lcfs_s():
