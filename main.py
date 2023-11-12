@@ -46,11 +46,13 @@ class LCFS_W:
 
         packets = [dataclasses.replace(packet) for packet in packets]
 
+        #to keep track of the last update time for each source 
         last_update: list[float] = [-1, -1]
         lcfs = Stack()
         
         output: list[PacketOutput] = []
 
+        #process_packets(previous_packet_arrival, packet.arrival_time)
         def process_packets(previous_clock: float, clock: float):
             processing_clock = previous_clock
             
@@ -61,9 +63,7 @@ class LCFS_W:
                 if packet.arrival_time < last_update[packet.source]:
                     continue
 
-                # Process the packet
-                available_processing_time = clock - processing_clock
-                processing_time = min(packet.service_time, available_processing_time)
+                processing_time = packet.service_time
                 processing_clock += processing_time
                 packet.service_time -= processing_time
 
@@ -84,21 +84,18 @@ class LCFS_W:
 
         previous_packet_arrival = -1
 
+        ####################this is where the process packet ends###################
+        
+        packets.sort(key=lambda x: x.arrival_time)
+        print("packets sorted in ascending order before being processed")
+        print(packets)
         for packet in packets:
             process_packets(previous_packet_arrival, packet.arrival_time)
             previous_packet_arrival = packet.arrival_time
 
-            if lcfs.empty():
-                lcfs.push(packet)
-            else:
-                # Check if the new packet should replace an older packet in the queue
-                while not lcfs.empty():
-                    oldest_packet = lcfs.pop()
-                    if packet.arrival_time >= oldest_packet.arrival_time:
-                        lcfs.push(oldest_packet)
-                        break
-                lcfs.push(packet)
+            lcfs.push(packet)
 
+           
         total_remaining_processing_time = sum([packet.service_time for packet in lcfs.items])
         process_packets(previous_packet_arrival, previous_packet_arrival + total_remaining_processing_time)
 
@@ -160,6 +157,7 @@ class LCFS_S:
                 
         previous_packet_arrival = -1
 
+
         for packet in packets:
             # process packets in lcfs queue
             process_packets(previous_packet_arrival, packet.arrival_time)
@@ -167,6 +165,8 @@ class LCFS_S:
 
             # push the new packet to the top of lcfs queue
             # gives this packet priority, preempts previous packet.
+            
+            #HEREEEEEEEEEEEEEEE
             lcfs.push(packet)
 
         # process any remaining packets. packets with old status updates will be ignored.
@@ -190,3 +190,22 @@ def create_packets() -> list[Packet]:
 # Aidan
 def aoi(packets: list[PacketOutput]) -> float:
     ...
+
+
+def main():
+
+    lcfsw = LCFS_W()
+
+    packets = [
+        Packet(arrival_time=1, service_time=5, source=0),
+        Packet(arrival_time=2, service_time=2, source=1),
+        Packet(arrival_time=3, service_time=2, source=0),
+    ]
+
+    output = LCFS_W().simulate(packets)
+    print("result")
+    print(output)
+
+
+if __name__ == "__main__":
+    main()
