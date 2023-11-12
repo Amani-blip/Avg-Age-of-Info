@@ -39,7 +39,7 @@ class Simulation(Protocol):
 
 class LCFS_W:
     #Amani
-    #TODO: LOGIC IS STILL UNDER REVIEW/TEST
+
     def simulate(self, packets: list[Packet]) -> list[PacketOutput]:
         if len(packets) == 0:
             return []
@@ -52,7 +52,6 @@ class LCFS_W:
         
         output: list[PacketOutput] = []
 
-        #process_packets(previous_packet_arrival, packet.arrival_time)
         def process_packets(previous_clock: float, clock: float):
             processing_clock = previous_clock
             
@@ -63,6 +62,7 @@ class LCFS_W:
                 if packet.arrival_time < last_update[packet.source]:
                     continue
 
+                #packets are not interrupted while being serviced
                 processing_time = packet.service_time
                 processing_clock += processing_time
                 packet.service_time -= processing_time
@@ -77,15 +77,11 @@ class LCFS_W:
                             service_end_time=processing_clock
                         )
                     )
-                    continue
-                
-                # The packet was not fully processed
-                lcfs.push(packet)
 
         previous_packet_arrival = -1
 
-        ####################this is where the process packet ends###################
-        
+        #sorting the packets in ascending order so that the newest packet replaces older packets
+        #waiting in the queue (regardless of the source index)
         packets.sort(key=lambda x: x.arrival_time)
         print("packets sorted in ascending order before being processed")
         print(packets)
@@ -97,6 +93,8 @@ class LCFS_W:
 
            
         total_remaining_processing_time = sum([packet.service_time for packet in lcfs.items])
+
+        print(total_remaining_processing_time)
         process_packets(previous_packet_arrival, previous_packet_arrival + total_remaining_processing_time)
 
         return output
@@ -165,8 +163,7 @@ class LCFS_S:
 
             # push the new packet to the top of lcfs queue
             # gives this packet priority, preempts previous packet.
-            
-            #HEREEEEEEEEEEEEEEE
+
             lcfs.push(packet)
 
         # process any remaining packets. packets with old status updates will be ignored.
