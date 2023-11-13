@@ -138,7 +138,7 @@ def create_packets(
         packets.append(
             Packet(
                 arrival_time=time,
-                service_time=np.random.exponential(scale=scale),
+                service_time=rng.exponential(scale=scale),
                 source=source
             )
         )
