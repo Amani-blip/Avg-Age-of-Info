@@ -122,51 +122,80 @@ class ProposedPolicy:
         if len(packets) == 0:
             return []
         
-        #creates a new instance of the data class with all of the same field values, just to avoid changing original data 
-        packets = [dataclasses.replace(packet) for packet in packets]
-        
-        last_update: list[float] = [-1, -1] # Last update times for each source (used to calculate AoI)
-        queues: Dict[int, Queue] = defaultdict(Queue) # Use the built in queue for each source
-        # Represents the sink
-        output: list[PacketOutput] = [] # List to store processed packets
+        # This ensures that all the packets are only from source 1 or 2 as explicitly stated in the paper.
+        packets = [p for p in packets if p.source in [1, 2]]
 
+        # Initialize the queue
+        queue = Queue()
+        # Initialize the list of processed packets
+        sink: list[PacketOutput] = []
+        # Keep track if server is busy
         server_busy = False
-        current_time = 0
+
+        def process_packets(previous_clock: float, clock: float):
+            processing_clock = previous_clock
+            server_busy = True
+            
+            while not queue.empty() and processing_clock != clock:
+                #get the first item of the list
+                packet = queue.pop()
+
+                # process the packet
+                available_processing_time = clock - processing_clock
+                processing_time = min(packet.service_time, available_processing_time)
+                processing_clock += processing_time
+                packet.service_time -= processing_time
+
+                # the packet was fully processed
+                if packet.service_time == 0:
+                    sink.append(
+                        PacketOutput(
+                            source=packet.source, 
+                            arrival_time=packet.arrival_time, 
+                            service_end_time=processing_clock
+                        )
+                    )
+                    server_busy = False
+                else:
+                    # If it wasn't fully processed add it in the end of the list
+                    queue.insert(packet)
+      
+        # Because the simulation time starts at 0
+        previous_packet_arrival = 0
 
         for packet in packets:
-            # Process packets if the server is not busy and the packet arrival tiime is due
-            if not server_busy or packet.arrival_time >= current_time:
-                server_busy = True  # Server is now busy
-                current_time = max(current_time, packet.arrival_time) + packet.service_time # Update the current time
-                last_update[packet.source-1] = packet.arrival_time  # Update the last update time for the source
-                output.append(PacketOutput(  # Add the processed packet to the sink
-                    source=packet.source,
-                    arrival_time=packet.arrival_time,
-                    service_end_time=current_time
-                ))
-                continue  # Skip to the next packet
+            # Here we process the packets
+            process_packets(previous_packet_arrival, packet.arrival_time)
+            previous_packet_arrival = packet.arrival_time
+            # If the queue is empty regardless of the source immediately enter the queue
+            if queue.empty():
+                queue.push(packet)
+                server_busy = True
+            else:
+                # Recall: packet of a source c ∈ {1, 2} waiting in the queue is replaced if a new packet of the same source arrives.
+                replaced = False
+                # If there's only one packet in the queue, check if it's the same source and not being processed
+                if not server_busy and queue.items[0].source == packet.source:
+                    # Replace the packet only if it's the same source and the queue has not started processing
+                    queue.items[0] = packet
+                    replaced = True
+                elif len(queue.items) == 2:
+                    # If there are two packets, check the second one for replacement possibility
+                    if queue.items[1].source == packet.source:
+                        queue.items[1] = packet
+                        replaced = True
 
-            # Enqueue or replace packet: a packet of a source c ∈ {1, 2} waiting in the queue is replaced if a new packet of the same source arrives.
-            if not queues[packet.source].empty():
-                queues[packet.source].get()  # Remove the old packet if it exists
-            queues[packet.source].put(packet) # Adds new packet
+                # If no packet from the same source was found and the queue isn't full, add the packet
+                if not replaced and len(queue.items) < 2:
+                    queue.push(packet)
+                    server_busy = True if len(queue.items) == 1 else server_busy
 
-        # Process any remaining packets in the queue (this happens if packets arrive while the server is busy, so they're queued)
-        while any(not q.empty() for q in queues.values()):
-          for source, queue in queues.items():
-              if not queue.empty():
-                packet = queue.get()
-                  # Server processes the remaining packet
-                current_time = max(current_time, packet.arrival_time)
-                current_time += packet.service_time
-                last_update[packet.source-1] = packet.arrival_time
-                output.append(PacketOutput(  # Add the processed packet to the sink
-                    source=packet.source,
-                    arrival_time=packet.arrival_time,
-                    service_end_time=current_time
-                ))
-        
-        return output
+        # process any remaining packets after the last arrival
+        total_remaining_processing_time = sum([packet.service_time for packet in queue.items])
+        process_packets(previous_packet_arrival, previous_packet_arrival + total_remaining_processing_time)
+
+
+        return sink
 
 
 # Aidan
