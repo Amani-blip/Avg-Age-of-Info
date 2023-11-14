@@ -32,6 +32,25 @@ class Stack:
         """returns true when the stack is empty"""
         return len(self.items) == 0
 
+class Queue:
+    def __init__(self):
+        # the last item is the top of the stack
+        self.items: list[Any] = []
+
+    def push(self, item: Any):
+        self.items.append(item)
+
+    def insert(self, item: Any):
+        self.items.insert(0, item)
+
+    def pop(self) -> Any:
+        if not self.empty():
+          return self.items.pop(0)
+        return None
+
+    def empty(self) -> bool:
+        """returns true when the queue is empty"""
+        return len(self.items) == 0
 
 class Simulation(Protocol):
     def simulate(self, packets: list[Packet]) -> list[PacketOutput]:
