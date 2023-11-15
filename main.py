@@ -314,19 +314,26 @@ def sort_packets(*packet_lists: list[Packet]) -> list[Packet]:
 
 
 def create_packets(
-    n: int, source: int, arrival_rate: float, service_time_mean: float, seed=None
+    max_arrival_time: float,
+    source: int,
+    arrival_rate: float,
+    service_time_mean: float,
+    seed=None,
 ) -> list[Packet]:
     """create packets for a source with an arrival rate, and service time mean"""
     packets: list[Packet] = []
     arrival_time: int = 0
     rng: np.random.Generator = np.random.default_rng(seed)
 
-    for _ in range(n):
-        arrival_time += rng.poisson(lam=arrival_rate)
+    while True:
+        arrival_time += rng.poisson(lam=1 / arrival_rate)
+        if arrival_time > max_arrival_time:
+            break
+
         packets.append(
             Packet(
                 arrival_time=arrival_time,
-                service_time=rng.exponential(scale=1 / service_time_mean),
+                service_time=rng.exponential(scale=service_time_mean),
                 source=source,
             )
         )
@@ -334,8 +341,7 @@ def create_packets(
     return packets
 
 
-def aoi(packets: list[PacketOutput]) -> float:
-    def age_of_packet(packet: PacketOutput) -> float:
-        return packet.service_end_time - packet.arrival_time
-
-    return sum(map(age_of_packet, packets)) / len(packets)
+def get_outputs_by_source(
+    packets: list[PacketOutput], source: int
+) -> list[PacketOutput]:
+    return [p for p in packets if p.source == source]
