@@ -1,6 +1,7 @@
 import dataclasses
 from dataclasses import dataclass
-from typing import Protocol, Any
+from typing import Protocol, Any, Callable
+import numpy as np
 
 
 @dataclass
@@ -326,31 +327,35 @@ class ProposedPolicy:
         return sink
 
 # Aidan
-def create_packets() -> list[Packet]:
-    ...
+def create_packets(
+    n: int,
+    source: int,
+    lam: float,
+    scale: float
+) -> list[Packet]:
+    packets: list[Packet] = []
+    time: int = 0
+    rng: np.random.Generator = np.random.default_rng()
+
+    for _ in range(n):
+        time += rng.poisson(lam=lam)
+        packets.append(
+            Packet(
+                arrival_time=time,
+                service_time=rng.exponential(scale=scale),
+                source=source
+            )
+        )
+
+    return packets
+
 
 # Aidan
 def aoi(packets: list[PacketOutput]) -> float:
-    ...
+    def age_of_packet(packet: PacketOutput) -> float:
+        return packet.service_end_time - packet.arrival_time
 
+    return sum(
+        map(age_of_packet, packets)
+    )/len(packets)
 
-def main():
-
-    lcfsw = LCFS_W()
-
-    packets = [
-        Packet(arrival_time=1, service_time=5, source=0),
-        Packet(arrival_time=2, service_time=2, source=1),
-        Packet(arrival_time=3, service_time=2, source=0),
-        Packet(arrival_time=18, service_time=5, source=0), 
-        Packet(arrival_time=19, service_time=2, source=0), 
-        Packet(arrival_time=20, service_time=2, source=0)
-    ]
-
-    output = LCFS_W().simulate(packets)
-    print("result")
-    print(output)
-
-
-if __name__ == "__main__":
-    main()
