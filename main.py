@@ -61,113 +61,83 @@ class Simulation(Protocol):
 
 
 class LCFS_W:
-
-    """
-        packets = [
-        Packet(arrival_time=1, service_time=5, source=0),
-        Packet(arrival_time=2, service_time=2, source=1),
-        Packet(arrival_time=3, service_time=2, source=0),
-    ]
-    """
-
     def simulate(self, packets: list[Packet]) -> list[PacketOutput]:
-        ...
+        # check there's at least one packet to simulate
         if len(packets) == 0:
             return []
 
+        # copy the packets since this method will modify the service_time
+        # as the packets are processed.
         packets = [dataclasses.replace(packet) for packet in packets]
 
+        # run the simulation
         last_update: list[float] = [-1, -1]
         lcfs = Stack()
 
         output: list[PacketOutput] = []
 
-        server_busy = False
+        def process_packets(previous_clock: float, clock: float):
+            """given the previous clock time, and current clock time. we process
+            packets in the lcfs queue.
+            """
+            processing_clock = previous_clock
 
-        def process_packets():
-            # while not lcfs.empty() and processing_clock != clock:
-            if not lcfs.empty():
-                pck: Packet = lcfs.pop()
+            while not lcfs.empty() and processing_clock != clock:
+                packet: Packet = lcfs.pop()
 
-                if pck.arrival_time < last_update[pck.source]:
-                    return
+                # drop packets that contain old status updates
+                if packet.arrival_time < last_update[packet.source]:
+                    continue
 
-                # departure = arrival + wait + service
-                prev_departure = 0
-                if output:
-                    prev_departure = output[len(output) - 1].service_end_time
-                waiting_time = 0
-                if prev_departure > pck.arrival_time:
-                    waiting_time = prev_departure - pck.arrival_time
+                # process the packet
+                available_processing_time = clock - processing_clock
+                processing_time = min(packet.service_time, available_processing_time)
+                processing_clock += processing_time
+                packet.service_time -= processing_time
 
-                last_update[pck.source] = pck.arrival_time
-                output.append(
-                    PacketOutput(
-                        source=pck.source,
-                        arrival_time=pck.arrival_time,
-                        service_end_time=pck.arrival_time
-                        + waiting_time
-                        + pck.service_time,
+                # the packet was fully processed
+                if packet.service_time == 0:
+                    last_update[packet.source] = packet.arrival_time
+                    output.append(
+                        PacketOutput(
+                            source=packet.source,
+                            arrival_time=packet.arrival_time,
+                            service_end_time=processing_clock,
+                        )
                     )
-                )
+                    continue
 
-        seen = []
-
-        while packets:
-            packet = packets[0]
-            if packet.arrival_time <= last_update[packet.source]:
-                print(packet.arrival_time)
-                print(last_update[packet.source])
-                print("amani")
-                packets.pop(0)
-                continue
-            prev_departure = 0
-
-            if output:
-                prev_departure_packet = output[len(output) - 1]
-                if prev_departure_packet not in seen:
-                    seen.append(prev_departure_packet)
-                    prev_departure = prev_departure_packet.service_end_time
-
-                print(prev_departure)
-
-            # if a packet arrives while the server is busy
-            if packet.arrival_time < prev_departure:
-                server_busy = True
-            else:
-                server_busy = False
-
-            print("this is the packet")
-            print(packet)
-            print(packets)
-
-            if not server_busy:
+                # the packet was not fully processed
+                # there wasn't enough processing time so we push it back to the top
+                # of the lcfs queue to continue processing the next time.
                 lcfs.push(packet)
-                process_packets()
-                packet_popped = packets.pop(0)
 
-                print(packet_popped)
-                print("packets after pop")
-                print(packets)
-                print("here")
-            elif server_busy:
-                print("here2")
-                waiting = []
-                if packets:
-                    # temp_arrival = packets[i].arrival_time
-                    while packets:
-                        temp_arrival = packets[0].arrival_time
-                        if temp_arrival <= prev_departure:
-                            popped = packets.pop(0)
-                            waiting.append(popped)
-                        else:
-                            break
+        previous_packet_arrival = -1
 
-                    print("final waint")
-                    print(waiting)
-                waiting.sort(key=lambda x: x.arrival_time, reverse=True)
-                print()
-                packets = waiting + packets
+        for packet in packets:
+            process_packets(previous_packet_arrival, packet.arrival_time)
+            previous_packet_arrival = packet.arrival_time
+
+            # if the stack is empty we put the new packet at the top
+            # otherwise we place the packet in the second position so
+            # that it waits before being processed
+            if lcfs.empty():
+                lcfs.push(packet)
+            else:
+                temp = lcfs.pop()
+                lcfs.push(packet)
+                lcfs.push(temp)
+
+        # process any remaining packets. packets with old status updates will be ignored.
+        # so I can calculate the total remaining processing time and advance the clock that far
+        # to ensure any remaining packets are processed.
+        total_remaining_processing_time = sum(
+            [packet.service_time for packet in lcfs.items]
+        )
+        process_packets(
+            previous_packet_arrival,
+            previous_packet_arrival + total_remaining_processing_time,
+        )
 
         return output
 
@@ -210,9 +180,7 @@ class LCFS_S:
 
                 # the packet was fully processed
                 if packet.service_time == 0:
-                    last_update[
-                        packet.source
-                    ] = packet.arrival_time  # update last_update for this source
+                    last_update[packet.source] = packet.arrival_time
                     output.append(
                         PacketOutput(
                             source=packet.source,
@@ -236,7 +204,6 @@ class LCFS_S:
 
             # push the new packet to the top of lcfs queue
             # gives this packet priority, preempts previous packet.
-
             lcfs.push(packet)
 
         # process any remaining packets. packets with old status updates will be ignored.
