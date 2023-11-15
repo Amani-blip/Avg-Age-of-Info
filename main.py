@@ -260,23 +260,23 @@ class ProposedPolicy:
         if len(packets) == 0:
             return []
 
-        # This ensures that all the packets are only from source 1 or 2 as explicitly stated in the paper.
-        packets = [p for p in packets if p.source in [1, 2]]
+        # copy the packets since this method will modify the service_time
+        # as the packets are processed.
+        packets = [dataclasses.replace(packet) for packet in packets]
 
-        # Initialize the queue
+        # run the simulation
         queue = Queue()
-        # Initialize the list of processed packets
-        sink: list[PacketOutput] = []
-        # Keep track if server is busy
-        server_busy = False
+
+        output: list[PacketOutput] = []
 
         def process_packets(previous_clock: float, clock: float):
+            """given the previous clock time, and current clock time. we process
+            packets in the lcfs queue.
+            """
             processing_clock = previous_clock
-            server_busy = True
 
             while not queue.empty() and processing_clock != clock:
-                # get the first item of the list
-                packet = queue.pop()
+                packet: Packet = queue.pop()
 
                 # process the packet
                 available_processing_time = clock - processing_clock
@@ -286,49 +286,46 @@ class ProposedPolicy:
 
                 # the packet was fully processed
                 if packet.service_time == 0:
-                    sink.append(
+                    output.append(
                         PacketOutput(
                             source=packet.source,
                             arrival_time=packet.arrival_time,
                             service_end_time=processing_clock,
                         )
                     )
-                    server_busy = False
-                else:
-                    # If it wasn't fully processed add it in the end of the list
-                    queue.insert(packet)
+                    continue
 
-        # Because the simulation time starts at 0
-        previous_packet_arrival = 0
+                # the packet was not fully processed
+                # there wasn't enough processing time so we push it back to the top
+                # of the lcfs queue to continue processing the next time.
+                queue.insert(packet)
+
+        previous_packet_arrival = -1
 
         for packet in packets:
-            # Here we process the packets
+            # process packets in lcfs queue
             process_packets(previous_packet_arrival, packet.arrival_time)
             previous_packet_arrival = packet.arrival_time
-            # If the queue is empty regardless of the source immediately enter the queue
+
+            # push the new packet to the top of lcfs queue
+            # gives this packet priority, preempts previous packet.
             if queue.empty():
                 queue.push(packet)
-                server_busy = True
             else:
-                # Recall: packet of a source c ∈ {1, 2} waiting in the queue is replaced if a new packet of the same source arrives.
                 replaced = False
-                # If there's only one packet in the queue, check if it's the same source and not being processed
-                if not server_busy and queue.items[0].source == packet.source:
-                    # Replace the packet only if it's the same source and the queue has not started processing
-                    queue.items[0] = packet
-                    replaced = True
-                elif len(queue.items) == 2:
-                    # If there are two packets, check the second one for replacement possibility
-                    if queue.items[1].source == packet.source:
-                        queue.items[1] = packet
+
+                for i, waiting_packet in enumerate(queue.items[1:]):
+                    if waiting_packet.source == packet.source:
+                        queue.items[i + 1] = packet
                         replaced = True
+                        break
 
-                # If no packet from the same source was found and the queue isn't full, add the packet
-                if not replaced and len(queue.items) < 2:
+                if not replaced:
                     queue.push(packet)
-                    server_busy = True if len(queue.items) == 1 else server_busy
 
-        # process any remaining packets after the last arrival
+        # process any remaining packets. packets with old status updates will be ignored.
+        # so I can calculate the total remaining processing time and advance the clock that far
+        # to ensure any remaining packets are processed.
         total_remaining_processing_time = sum(
             [packet.service_time for packet in queue.items]
         )
@@ -337,7 +334,7 @@ class ProposedPolicy:
             previous_packet_arrival + total_remaining_processing_time,
         )
 
-        return sink
+        return output
 
 
 # Aidan
