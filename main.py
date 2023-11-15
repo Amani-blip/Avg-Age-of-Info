@@ -57,10 +57,117 @@ class Simulation(Protocol):
         ...
 
 class LCFS_W:
-    # Amani
+
+    """
+        packets = [
+        Packet(arrival_time=1, service_time=5, source=0),
+        Packet(arrival_time=2, service_time=2, source=1),
+        Packet(arrival_time=3, service_time=2, source=0),
+    ]
+    """
     def simulate(self, packets: list[Packet]) -> list[PacketOutput]:
         ...
+        if len(packets) == 0:
+            return []
 
+        packets = [dataclasses.replace(packet) for packet in packets]
+
+        last_update: list[float] = [-1, -1]
+        lcfs = Stack()
+
+        output: list[PacketOutput] = []
+
+        server_busy = False
+
+        def process_packets():
+            
+            # while not lcfs.empty() and processing_clock != clock:
+            if not lcfs.empty():
+                pck: Packet = lcfs.pop()
+                
+                if pck.arrival_time < last_update[pck.source]:
+                    return
+                
+                #departure = arrival + wait + service
+                prev_departure = 0
+                if output:
+                    prev_departure = output[len(output)-1].service_end_time
+                waiting_time = 0
+                if prev_departure > pck.arrival_time:
+                    waiting_time = prev_departure - pck.arrival_time
+                
+                last_update[pck.source] = pck.arrival_time
+                output.append(
+                    PacketOutput(
+                        source=pck.source, 
+                        arrival_time=pck.arrival_time, 
+                        service_end_time=pck.arrival_time + waiting_time + pck.service_time
+                    )
+                )
+
+        seen = []
+
+        while packets:
+            packet = packets[0]
+            if packet.arrival_time <= last_update[packet.source]:
+                print(packet.arrival_time) 
+                print(last_update[packet.source])
+                print('amani')
+                packets.pop(0)
+                continue
+            prev_departure = 0
+            
+            if output: 
+                prev_departure_packet = output[len(output)-1]
+                if prev_departure_packet not in seen: 
+                    seen.append(prev_departure_packet)
+                    prev_departure = prev_departure_packet.service_end_time
+
+                print(prev_departure)
+
+            #if a packet arrives while the server is busy
+            if packet.arrival_time < prev_departure:
+                server_busy = True
+            else: 
+                server_busy = False
+
+            print('this is the packet')
+            print(packet)
+            print(packets)
+
+            if not server_busy: 
+                lcfs.push(packet)
+                process_packets()
+                packet_popped = packets.pop(0)
+                
+                print(packet_popped)
+                print('packets after pop')
+                print(packets)
+                print('here')
+            elif server_busy:
+                print('here2')
+                waiting = []
+                i = 0
+                if packets: 
+                    #temp_arrival = packets[i].arrival_time
+                    while packets: 
+                        temp_arrival = packets[0].arrival_time    
+                        if temp_arrival <= prev_departure:
+                            popped = packets.pop(0)
+                            waiting.append(popped)
+                        else: 
+                            break
+                        
+                    print('final waint')
+                    print(waiting)
+                waiting.sort(key=lambda x: x.arrival_time, reverse=True)
+                print()
+                packets = waiting + packets
+
+                        
+        return output
+
+            
 class LCFS_S:
     # Daniel
     def simulate(self, packets: list[Packet]) -> list[PacketOutput]:
@@ -117,6 +224,7 @@ class LCFS_S:
                 
         previous_packet_arrival = -1
 
+
         for packet in packets:
             # process packets in lcfs queue
             process_packets(previous_packet_arrival, packet.arrival_time)
@@ -124,6 +232,7 @@ class LCFS_S:
 
             # push the new packet to the top of lcfs queue
             # gives this packet priority, preempts previous packet.
+
             lcfs.push(packet)
 
         # process any remaining packets. packets with old status updates will be ignored.
@@ -216,7 +325,6 @@ class ProposedPolicy:
 
         return sink
 
-
 # Aidan
 def create_packets() -> list[Packet]:
     ...
@@ -224,3 +332,25 @@ def create_packets() -> list[Packet]:
 # Aidan
 def aoi(packets: list[PacketOutput]) -> float:
     ...
+
+
+def main():
+
+    lcfsw = LCFS_W()
+
+    packets = [
+        Packet(arrival_time=1, service_time=5, source=0),
+        Packet(arrival_time=2, service_time=2, source=1),
+        Packet(arrival_time=3, service_time=2, source=0),
+        Packet(arrival_time=18, service_time=5, source=0), 
+        Packet(arrival_time=19, service_time=2, source=0), 
+        Packet(arrival_time=20, service_time=2, source=0)
+    ]
+
+    output = LCFS_W().simulate(packets)
+    print("result")
+    print(output)
+
+
+if __name__ == "__main__":
+    main()
