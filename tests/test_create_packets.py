@@ -1,14 +1,17 @@
-from main import create_packets
+from main import create_packets, sort_packets
 
 
 def test_create_packets():
-    source = 1
-    n = 5
-    packets = create_packets(n, source, 0.45, 1.0)
+    packets_source0 = create_packets(
+        n=100, source=0, arrival_rate=1, service_time_mean=1
+    )
 
-    for packet in packets:
-        assert type(packet.arrival_time) is int
-        assert type(packet.service_time) is float
-        assert packet.source == source
+    packets_source1 = create_packets(
+        n=100, source=1, arrival_rate=1, service_time_mean=1
+    )
 
-    assert len(packets) == n
+    packets = sort_packets(packets_source0, packets_source1)
+    assert len(packets) == 200
+
+    for i in range(len(packets) - 1):
+        assert packets[i].arrival_time <= packets[i + 1].arrival_time

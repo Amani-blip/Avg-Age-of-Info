@@ -29,6 +29,7 @@ class Queue:
         self.items.append(item)
 
     def insert(self, item: Any):
+        # insert at the front of the queue
         self.items.insert(0, item)
 
     def pop(self) -> Any:
@@ -304,18 +305,28 @@ class ProposedPolicy:
         return output
 
 
-# Aidan
-def create_packets(n: int, source: int, lam: float, scale: float) -> list[Packet]:
+def sort_packets(*packet_lists: list[Packet]) -> list[Packet]:
+    """sort multiple lits of packets by ascending arrival time"""
+    packets = []
+    for packet_list in packet_lists:
+        packets.extend(packet_list)
+    return sorted(packets, key=lambda packet: packet.arrival_time)
+
+
+def create_packets(
+    n: int, source: int, arrival_rate: float, service_time_mean: float, seed=None
+) -> list[Packet]:
+    """create packets for a source with an arrival rate, and service time mean"""
     packets: list[Packet] = []
-    time: int = 0
-    rng: np.random.Generator = np.random.default_rng()
+    arrival_time: int = 0
+    rng: np.random.Generator = np.random.default_rng(seed)
 
     for _ in range(n):
-        time += rng.poisson(lam=lam)
+        arrival_time += rng.poisson(lam=arrival_rate)
         packets.append(
             Packet(
-                arrival_time=time,
-                service_time=rng.exponential(scale=scale),
+                arrival_time=arrival_time,
+                service_time=rng.exponential(scale=1 / service_time_mean),
                 source=source,
             )
         )
@@ -323,7 +334,6 @@ def create_packets(n: int, source: int, lam: float, scale: float) -> list[Packet
     return packets
 
 
-# Aidan
 def aoi(packets: list[PacketOutput]) -> float:
     def age_of_packet(packet: PacketOutput) -> float:
         return packet.service_end_time - packet.arrival_time
