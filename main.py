@@ -327,7 +327,7 @@ def create_packets(
     rng: np.random.Generator = np.random.default_rng(seed)
 
     while True:
-        arrival_time += rng.poisson(lam=1 / arrival_rate)
+        arrival_time += rng.exponential(scale=1.0 / arrival_rate)
         if arrival_time > max_arrival_time:
             break
 
