@@ -1,7 +1,8 @@
 import dataclasses
-from dataclasses import dataclass
-from typing import Protocol, Any
 import numpy as np
+
+from dataclasses import dataclass
+from typing import Protocol, Any, NamedTuple
 
 
 class Stack:
@@ -345,3 +346,55 @@ def get_outputs_by_source(
     packets: list[PacketOutput], source: int
 ) -> list[PacketOutput]:
     return [p for p in packets if p.source == source]
+
+
+class AoiUpdate(NamedTuple):
+    time: float  # when this age of information was valid
+    age: float  # the age of information
+
+
+def calculate_average_age_information(
+    outputs: list[PacketOutput], source: int
+) -> float:
+    updates = get_age_of_information_updates(outputs, source)
+
+    total = 0
+    total_delta_time = 0
+
+    for i in range(1, len(updates) - 1, 2):
+        prev_update = updates[i - 1]
+        update = updates[i]
+
+        delta_time = update.time - prev_update.time
+        total += ((update.age + prev_update.age) / 2) * delta_time
+        total_delta_time += delta_time
+
+    return total / total_delta_time
+
+
+def get_age_of_information_updates(
+    outputs: list[PacketOutput], source: int
+) -> list[AoiUpdate]:
+    """helper method to get "aoi updates" which are used to calculate average aoi
+    and plot aoi over time"""
+
+    updates = [AoiUpdate(time=0, age=0)]  # simulation time, age of information
+    outputs = get_outputs_by_source(outputs, source)
+
+    prev = PacketOutput(arrival_time=0, service_end_time=0, source=-1)  # dummy packet
+    for packet in outputs:
+        time = packet.service_end_time  # when the age of information changes
+        updates.append(
+            AoiUpdate(
+                time=time,
+                age=prev.service_end_time
+                - prev.arrival_time
+                + (packet.service_end_time - prev.service_end_time),
+            )
+        )
+        updates.append(
+            AoiUpdate(time=time, age=packet.service_end_time - packet.arrival_time)
+        )
+        prev = packet
+
+    return updates
