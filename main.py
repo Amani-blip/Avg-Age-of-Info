@@ -74,7 +74,7 @@ class LCFS_W:
 
         # run the simulation
         last_update: list[float] = [-1, -1]
-        lcfs = Stack()
+        queue = Queue()
 
         output: list[PacketOutput] = []
 
@@ -84,12 +84,8 @@ class LCFS_W:
             """
             processing_clock = previous_clock
 
-            while not lcfs.empty() and processing_clock != clock:
-                packet: Packet = lcfs.pop()
-
-                # drop packets that contain old status updates
-                if packet.arrival_time < last_update[packet.source]:
-                    continue
+            while not queue.empty() and processing_clock != clock:
+                packet: Packet = queue.pop()
 
                 # process the packet
                 available_processing_time = clock - processing_clock
@@ -112,7 +108,7 @@ class LCFS_W:
                 # the packet was not fully processed
                 # there wasn't enough processing time so we push it back to the top
                 # of the lcfs queue to continue processing the next time.
-                lcfs.push(packet)
+                queue.insert(packet)
 
         previous_packet_arrival = -1
 
@@ -120,21 +116,26 @@ class LCFS_W:
             process_packets(previous_packet_arrival, packet.arrival_time)
             previous_packet_arrival = packet.arrival_time
 
-            # if the stack is empty we put the new packet at the top
-            # otherwise we place the packet in the second position so
-            # that it waits before being processed
-            if lcfs.empty():
-                lcfs.push(packet)
+            # push the new packet to the top of lcfs queue
+            # gives this packet priority, preempts previous packet.
+            if queue.empty():
+                queue.push(packet)
             else:
-                temp = lcfs.pop()
-                lcfs.push(packet)
-                lcfs.push(temp)
+                replaced = False
+
+                for i in range(len(queue.items[1:])):
+                    queue.items[i + 1] = packet
+                    replaced = True
+                    break
+
+                if not replaced:
+                    queue.push(packet)
 
         # process any remaining packets. packets with old status updates will be ignored.
         # so I can calculate the total remaining processing time and advance the clock that far
         # to ensure any remaining packets are processed.
         total_remaining_processing_time = sum(
-            [packet.service_time for packet in lcfs.items]
+            [packet.service_time for packet in queue.items]
         )
         process_packets(
             previous_packet_arrival,
@@ -178,10 +179,10 @@ class LCFS_S:
                 available_processing_time = clock - processing_clock
                 processing_time = min(packet.service_time, available_processing_time)
                 processing_clock += processing_time
-                packet.service_time -= processing_time
+                # packet.service_time -= processing_time
 
                 # the packet was fully processed
-                if packet.service_time == 0:
+                if packet.service_time - processing_time == 0:
                     last_update[packet.source] = packet.arrival_time
                     output.append(
                         PacketOutput(
