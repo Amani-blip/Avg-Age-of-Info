@@ -80,7 +80,7 @@ class LCFS_W:
 
         def process_packets(previous_clock: float, clock: float):
             """given the previous clock time, and current clock time. we process
-            packets in the lcfs queue.
+            packets in the queue.
             """
             processing_clock = previous_clock
 
@@ -233,17 +233,17 @@ class ProposedPolicy:
         # as the packets are processed.
         packets = [dataclasses.replace(packet) for packet in packets]
 
-        # run the simulation
+        # Initialize the queue
         queue = Queue()
 
+        # Represents the sink: Initialize the list of processed packets
         output: list[PacketOutput] = []
 
         def process_packets(previous_clock: float, clock: float):
-            """given the previous clock time, and current clock time. we process
-            packets in the lcfs queue.
-            """
+            #given the previous clock time, and current clock time. we process packets.
             processing_clock = previous_clock
 
+            #get the first item of the list
             while not queue.empty() and processing_clock != clock:
                 packet: Packet = queue.pop()
 
@@ -264,37 +264,32 @@ class ProposedPolicy:
                     )
                     continue
 
-                # the packet was not fully processed
-                # there wasn't enough processing time so we push it back to the top
-                # of the lcfs queue to continue processing the next time.
+                # If it wasn't fully processed add it back in the list
                 queue.insert(packet)
-
+    
         previous_packet_arrival = -1
 
         for packet in packets:
-            # process packets in lcfs queue
+            # Here we process the packets
             process_packets(previous_packet_arrival, packet.arrival_time)
             previous_packet_arrival = packet.arrival_time
 
-            # push the new packet to the top of lcfs queue
-            # gives this packet priority, preempts previous packet.
+            # If the queue is empty regardless of the source immediately enter the queue
             if queue.empty():
                 queue.push(packet)
             else:
                 replaced = False
-
+                # Recall: packet of a source c ∈ {1, 2} waiting in the queue is replaced if a new packet of the same source arrives.
                 for i, waiting_packet in enumerate(queue.items[1:]):
                     if waiting_packet.source == packet.source:
                         queue.items[i + 1] = packet
                         replaced = True
                         break
-
+                # If no packet from the same source was found, add the packet
                 if not replaced:
                     queue.push(packet)
 
-        # process any remaining packets. packets with old status updates will be ignored.
-        # so I can calculate the total remaining processing time and advance the clock that far
-        # to ensure any remaining packets are processed.
+        # If no packet from the same source was found and the queue isn't full, add the packet
         total_remaining_processing_time = sum(
             [packet.service_time for packet in queue.items]
         )
