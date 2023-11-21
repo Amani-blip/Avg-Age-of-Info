@@ -12,5 +12,4 @@ def test_lcfs_s():
 
     assert output == [
         PacketOutput(arrival_time=3, service_end_time=5, source=0),
-        PacketOutput(arrival_time=2, service_end_time=6, source=1),
     ]
